@@ -20,13 +20,9 @@ export default {
   data() {
     return {
       layout: 'force',
-      linksData: null,
-      differenceLinksData: null,
       nodes: null,
-      // links: null,
-      colors: ['#377eb8', '#ce3b3d'],
-      allLinksData: null,
-      allDifferenceLinksData: null,
+      links: null,
+      colors: ['#ce3b3d', '#377eb8'],
       isDrag: false,
       simulationRunning: true,
       simulation: null,
@@ -39,10 +35,10 @@ export default {
   },
   props: {
     allnodes: Array,
+    alllinks: Array,
     selection: String,
     startYearId: Number,
     endYearId: Number,
-    linkForceScaling: String,
     linkForceMultiplierInput: String,
     chargeForceMultiplierInput: String,
     radialForceMultiplierInput: String,
@@ -72,19 +68,18 @@ export default {
       return parseFloat(this.radiusInput);
     },
     nodesData() {
-      console.log("new nodesData");
-      console.log(this.allnodes);
+      console.log("new nodesData", this.allnodes);
       return this.allnodes;
-
+    },
+    linksData() {
+      console.log("new linksData", this.alllinks);
+      return this.alllinks;
     },
   },
   watch: {
     nodesData() {
-      console.log("new nodesData");
       this.updateMap();
-    },
-    direction() {
-      this.updateMap();
+      this.simulation.restart().alpha(1).alphaTarget(0);
     },
     selection() {
       if (this.selection !== this.root && this.selection !== 'default') {
@@ -93,9 +88,6 @@ export default {
       if (this.selection === 'default') {
         this.switchToForce();
       }
-    },
-    linkForceScaling() {
-      this.updateMap();
     },
     linkForceMultiplier() {
       this.updateMap();
@@ -114,15 +106,8 @@ export default {
     },
   },
   async mounted() {
-    this.uniqueGroups = ['Male', 'Female'];
+    this.uniqueGroups = ['Female', 'Male'];
     this.color = d3.scaleOrdinal(d3.sort(d3.map(this.nodesData, d => d.group)), this.colors);
-
-    this.nodesData = this.nodesIn;
-    // let l = await this.loadLinks();
-    // this.allLinksData = l.links;
-    // this.allDifferenceLinksData = l.diffs;
-    this.allLinksData = [];
-    this.allDifferenceLinksData = [];
 
     this.updateMap();
   },
@@ -133,36 +118,6 @@ export default {
           .selectAll("g.apply-zoom")
           .attr("transform", event.transform);
     },
-
-    // async loadLinks() {
-    //   let linksData = await d3.json("../../data/migration.json");
-    //
-    //   let diffs = [];
-    //   linksData.forEach(d => {
-    //     if (diffs[d.source + "-" + d.target] !== undefined) {
-    //       diffs[d.source + "-" + d.target].females = d.females.map((v, i) => v + diffs[d.source + "-" + d.target][i]);
-    //       diffs[d.source + "-" + d.target].males = d.males.map((v, i) => v + diffs[d.source + "-" + d.target][i]);
-    //       diffs[d.source + "-" + d.target].total = d.total.map((v, i) => v + diffs[d.source + "-" + d.target][i]);
-    //     } else {
-    //       diffs[d.source + "-" + d.target] = d;
-    //     }
-    //     if (diffs[d.target + "-" + d.source] !== undefined) {
-    //       diffs[d.target + "-" + d.source].females = d.females.map((v, i) => diffs[d.source + "-" + d.target][i] - v);
-    //       diffs[d.target + "-" + d.source].males = d.males.map((v, i) => diffs[d.source + "-" + d.target][i] - v);
-    //       diffs[d.target + "-" + d.source].total = d.total.map((v, i) => diffs[d.source + "-" + d.target][i] - v);
-    //     } else {
-    //       diffs[d.target + "-" + d.source] = {
-    //         "source": d.target,
-    //         "target": d.source,
-    //         "females": d.females.map(e => -e),
-    //         "males": d.males.map(e => -e),
-    //         "total": d.total.map(e => -e)
-    //       };
-    //     }
-    //   });
-    //
-    //   return {links: linksData, diffs: Object.values(diffs)};
-    // },
 
     updateMap() {
       document.querySelector(".map-canvas").innerHTML = "";
@@ -180,12 +135,6 @@ export default {
         trigger: 'hover',
         delay: {show: 300, hide: 0}
       }));
-    },
-
-    getData(d) {
-      return d.total
-          .filter((v, i) => i >= this.startYearId && i <= this.endYearId && v > 0)
-          .reduce((a, b) => a + b, 0);
     },
 
     toggleLayout() {
@@ -243,29 +192,18 @@ export default {
           .attr("fill-opacity", 1)
           .attr("d", "M0,-5L10,0L0,5");
 
-      const color = d3.scaleOrdinal(d3.sort(d3.map(this.nodesData, d => d.group)), this.colors);
-
       let p = defs.selectAll("pattern")
           .data(this.nodesData)
           .join("pattern")
           .attr("height", "100%")
           .attr("width", "100%")
-          .attr("patternContentUnits", "objectBoundingBox")
-          .attr("id", d => `flag-${d.iso3316}`);
+          .attr("patternContentUnits", "objectBoundingBox");
       p.append("rect")
           .attr("x", "0")
           .attr("y", "0")
           .attr("height", "1")
           .attr("width", "1")
           .attr("fill", d => this.color(d.group));
-      // p.append("image")
-      //     .attr("x", "0")
-      //     .attr("y", "0")
-      //     .attr("preserveAspectRatio", "xMidYMid meet")
-      //     .attr("image-rendering", "pixelated")
-      //     .attr("height", "1")
-      //     .attr("width", "1")
-      //     .attr("xlink:href", d => require('@/assets/img/w20/' + d.iso3316.toString().toLowerCase() + '.png'));
 
     },
 
@@ -285,18 +223,17 @@ export default {
           .attr("stroke-opacity", 0.2)
           .attr("stroke-width", 1);
 
-      // this.links = [];
-      // const links = this.svg.append("g")
-      //     .attr("id", "links")
-      //     .attr("class", "apply-zoom")
-      //     .attr("fill", "none")
-      //     .attr("stroke-width", 1.5)
-      //     .selectAll("path")
-      //     .data(this.direction === 'd' ? this.differenceLinksData : this.linksData)
-      //     .join("path")
-      //     .attr("stroke", "#000")
-      //     .attr("stroke-width", d => Math.log10(this.getData(d)) - 3);
-      // this.links = links;
+      const links = this.svg.append("g")
+          .attr("id", "links")
+          .attr("class", "apply-zoom")
+          .attr("fill", "none")
+          .attr("stroke-width", 1.5)
+          .selectAll("path")
+          .data(this.linksData)
+          .join("path")
+          .attr("stroke", "#000")
+          .attr("stroke-width", 1);
+      this.links = links;
 
       const nodes = this.svg.append("g")
           .attr("id", "nodes")
@@ -322,14 +259,14 @@ export default {
           .force("charge", d3.forceManyBody().strength(-50 * this.chargeForceMultiplier));
       this.simulation
           .on("tick", () => {
-            // links
-            //     .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
-            //     .attr("x2", d => d.target.x).attr("y2", d => d.target.y)
-            //     .attr("d", linkArc);
+            links
+                .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+                .attr("x2", d => d.target.x).attr("y2", d => d.target.y)
+                .attr("d", linkArc);
             this.simulation.nodes()
                 .forEach(d => {
                   if (!this.isDrag) {
-                    if (d.pointer === this.root) {
+                    if (d.code === this.root) {
                       d.fx = 0;
                       d.fy = 0;
                     } else {
@@ -350,7 +287,7 @@ export default {
           .attr("data-bs-toggle", "tooltip").attr("title", d => d.name)
           .attr("r", 5)
           .call(drag(this.simulation))
-          .on("click", (event, node) => this.nodeClicked(node.pointer));
+          .on("click", (event, node) => this.nodeClicked(node.code));
 
       function linkArc(d) {
         const r = 2 * Math.hypot(d.target.x - d.source.x, d.target.y - d.source.y);
@@ -393,20 +330,10 @@ export default {
       return Object.assign(this.svg.node(), {scales: {color}});
     },
 
-    mapForceLinkStrength(d) {
-      if (this.linkForceScaling === 'equal') {
-        return 0.01 * this.linkForceMultiplier;
-      } else if (this.linkForceScaling === 'log') {
-        return Math.log(this.getData(d)) / 100 * this.linkForceMultiplier;
-      } else {
-        return Math.log10(this.getData(d)) / 100 * this.linkForceMultiplier;
-      }
-    },
-
     switchToForce() {
       this.root = null;
-      // this.links.attr("stroke-opacity", 0.2)
-      //     .attr("marker-end", `url(${new URL(`#arrow`, location)})`);
+      this.links.attr("stroke-opacity", 0.2)
+          .attr("marker-end", `url(${new URL(`#arrow`, location)})`);
       this.radialCircles
           .attr("class", "apply-zoom d-none")
           .data([]);
@@ -415,32 +342,31 @@ export default {
           .force("x", null)
           .force("y", null)
           .force("radial", null)
-          .force("link", d3.forceLink(this.direction === 'd' ? this.differenceLinksData : this.linksData)
-              .id(({index: i}) => d3.map(this.nodesData, d => d.pointer)[i])
-              .strength(d => this.mapForceLinkStrength(d)))
+          .force("charge", d3.forceManyBody().strength(-50 * this.chargeForceMultiplier))
+          .force("link", d3.forceLink(this.linksData)
+              .id(({index: i}) => d3.map(this.nodesData, d => d.code)[i])
+              .strength(.1 * this.linkForceMultiplier))
           .force("x", d3.forceX().strength(0.05 * this.centeringForceMultiplier))
           .force("y", d3.forceY().strength(0.05 * this.centeringForceMultiplier));
       this.simulation.restart().alpha(1).alphaTarget(0);
     },
 
-    switchToRadial(nodePointer) {
-      this.root = nodePointer;
-      let {layers, tree} = this.buildTree(nodePointer);
-      // this.links
-      //     .attr("stroke-opacity", i => (
-      //             ((this.direction === 'e' || this.direction === 'd') && tree.has(i.source.pointer) && tree.get(i.source.pointer).includes(i.target.pointer))
-      //             || ((this.direction === 'i' || this.direction === 'd') && tree.has(i.target.pointer) && tree.get(i.target.pointer).includes(i.source.pointer))
-      //         ) ? 1 : 0.05
-      //     )
-      //     .attr("marker-end", i => {
-      //       if (
-      //           ((this.direction === 'e' || this.direction === 'd') && tree.has(i.source.pointer) && tree.get(i.source.pointer).includes(i.target.pointer))
-      //           || ((this.direction === 'i' || this.direction === 'd') && tree.has(i.target.pointer) && tree.get(i.target.pointer).includes(i.source.pointer))
-      //       ) {
-      //         return `url(${new URL(`#arrow-full`, location)})`;
-      //       }
-      //       return `url(${new URL(`#arrow-faded`, location)})`;
-      //     });
+    switchToRadial(nodeCode) {
+      this.root = nodeCode;
+      let {layers, tree} = this.buildTree(nodeCode);
+      this.links
+          .attr("stroke-opacity", i => (
+                  tree.has(i.source.code) && tree.get(i.source.code).includes(i.target.code)
+              ) ? 1 : 0.05
+          )
+          .attr("marker-end", i => {
+            if (
+                tree.has(i.source.code) && tree.get(i.source.code).includes(i.target.code)
+            ) {
+              return `url(${new URL(`#arrow-full`, location)})`;
+            }
+            return `url(${new URL(`#arrow-faded`, location)})`;
+          });
       const radiuses = [...layers.map((d, i) => (i + 1) * this.radius)];
 
       this.radialCircles
@@ -457,55 +383,46 @@ export default {
           .force("x", null)
           .force("y", null)
           .force("radial", null)
-          .force("link", d3.forceLink(this.direction === 'd' ? this.differenceLinksData : this.linksData)
-              .id(({index: i}) => d3.map(this.nodesData, d => d.pointer)[i])
+          .force("link", d3.forceLink(this.linksData)
+              .id(({index: i}) => d3.map(this.nodesData, d => d.code)[i])
               .strength(link => (
-                      ((this.direction === 'e' || this.direction === 'd') && tree.has(link.source.pointer) && tree.get(link.source.pointer).includes(link.target.pointer))
-                      || ((this.direction === 'i' || this.direction === 'd') && tree.has(link.target.pointer) && tree.get(link.target.pointer).includes(link.source.pointer))
+                      tree.has(link.source.code) && tree.get(link.source.code).includes(link.target.code)
                   ) ? 0.2 * this.linkForceMultiplier : 0
               ))
-          .force("x", d3.forceX().strength(i => (i.pointer === nodePointer) ? .5 * this.centeringForceMultiplier : 0))
-          .force("y", d3.forceY().strength(i => (i.pointer === nodePointer) ? .5 * this.centeringForceMultiplier : 0))
+          .force("x", d3.forceX().strength(i => (i.code === nodeCode) ? .5 * this.centeringForceMultiplier : 0))
+          .force("y", d3.forceY().strength(i => (i.code === nodeCode) ? .5 * this.centeringForceMultiplier : 0))
+          .force("charge", null)
           .force("radial", d3.forceRadial()
               .strength(3 * this.radialForceMultiplier)
               .radius(i => {
-                let n = layers.findIndex(e => e.includes(i.pointer));
+                let n = layers.findIndex(e => e.includes(i.code));
                 (n === -1) ? n = layers.length : n;
                 return n * this.radius;
               }));
+      setTimeout(() => {
+        this.simulation.force("charge", d3.forceManyBody().strength(-50 * this.chargeForceMultiplier));
+      }, 5000);
       this.simulation.restart().alpha(0.7);
     },
 
-    nodeClicked(nodePointer, changeLayout = true) {
-      if (changeLayout && (nodePointer === this.root || this.layout === "force")) {
+    nodeClicked(nodeCode, changeLayout = true) {
+      if (changeLayout && (nodeCode === this.root || this.layout === "force")) {
         this.toggleLayout();
       }
       if (this.layout === "force") {
         this.$emit("node-clicked", 'default');
         this.switchToForce();
       } else {
-        this.$emit("node-clicked", nodePointer);
-        this.switchToRadial(nodePointer);
+        this.$emit("node-clicked", nodeCode);
+        this.switchToRadial(nodeCode);
       }
     },
 
     getNeighbors(node) {
       let neighbors = [];
-      if (this.direction === 'd') {
-        for (let link of this.differenceLinksData.map(d => [d.source.pointer, d.target.pointer])) {
-          if (link[0] === node) {
-            neighbors.push(link[1]);
-          } else if (link[1] === node) {
-            neighbors.push(link[0]);
-          }
-        }
-      } else {
-        for (let link of this.linksData.map(d => [d.source.pointer, d.target.pointer])) {
-          if (this.direction === 'i' && link[1] === node) {
-            neighbors.push(link[0]);
-          } else if (this.direction === 'e' && link[0] === node) {
-            neighbors.push(link[1]);
-          }
+      for (let link of this.linksData.map(d => [d.source.code, d.target.code, d.type])) {
+        if (link[0] === node && link[2] === 'parent') {
+          neighbors.push(link[1]);
         }
       }
       return neighbors;

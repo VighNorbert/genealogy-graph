@@ -31,20 +31,6 @@
             <h3>Force Multipliers</h3>
             <small>Altering the forces might result in an unstable visualisation.</small>
 
-
-            <div class="form-group row">
-                <div class="col-5">
-                    <label for="linkForceScaling">Scaling of Link Force</label>
-                </div>
-                <div class="col-7">
-                    <select id="linkForceScaling" name="linkForceScaling" v-model="linkForceScaling"
-                            class="form-select">
-                        <option value="equal">All equal</option>
-                        <option value="log">Log scaling</option>
-                        <option value="log10">Log10 scaling</option>
-                    </select>
-                </div>
-            </div>
             <div class="form-group row">
                 <div class="col-5">
                     <label for="linkForceMultiplier">Link</label>
@@ -105,12 +91,12 @@
         <div>
             <ForceDirectedGraph
                     :allnodes="nodes"
+                    :alllinks="links"
                     :selection="selection"
                     :linkForceMultiplierInput="linkForceMultiplier"
                     :chargeForceMultiplierInput="chargeForceMultiplier"
                     :radialForceMultiplierInput="radialForceMultiplier"
                     :centeringForceMultiplierInput="centeringForceMultiplier"
-                    :linkForceScaling="linkForceScaling"
                     :radiusInput="radius"
                     @node-clicked="(code) => selection = code"
             ></ForceDirectedGraph>
@@ -129,14 +115,14 @@ export default {
   data() {
     return {
       selection: 'default',
-      linkForceScaling: 'log10',
       linkForceMultiplier: '1',
       chargeForceMultiplier: '1',
       radialForceMultiplier: '1',
       centeringForceMultiplier: '1',
       radius: '100',
       forceSetup: false,
-      nodes: []
+      nodes: [],
+      links: []
     };
   },
   methods: {
@@ -149,8 +135,8 @@ export default {
       reader.onload = () => {
         const buffer = reader.result;
         const gedcom = readGedcom(buffer);
-        console.log(gedcom.getIndividualRecord());
         this.loadNodes(gedcom);
+        this.loadLinks(gedcom);
       };
       reader.readAsArrayBuffer(file);
     },
@@ -165,13 +151,12 @@ export default {
         }
         return null;
       };
-      console.log(Object.values( gedcom.getIndividualRecord()));
       this.nodes = Object.values(gedcom.getIndividualRecord())
           .filter((a) => typeof a === 'object')
           .map((record) => {
         let s = findTag(record, 'SEX')?.value;
         return {
-          'pointer': record.pointer,
+          'code': record.pointer,
           'name': findTag(record, 'NAME')?.value.replaceAll('/', ''),
           'sex': s === 'M' ? 'Male' : 'Female',
           'id': findTag(record, '_FSFTID')?.value,
@@ -179,9 +164,52 @@ export default {
           'christening': findEventTag(record, 'CHR'),
           'death': findEventTag(record, 'DEAT'),
           'burial': findEventTag(record, 'BURI'),
-          'group': findTag(record, 'SEX')?.value,
+          'group': s === 'M' ? 'Male' : 'Female',
         };
       });
+    },
+    loadLinks(gedcom) {
+      const findTag = (record, tag) => {
+        return record.children.find((c) => c.tag === tag);
+      };
+      console.log(gedcom.getFamilyRecord());
+      this.links = Object.values(gedcom.getFamilyRecord())
+          .filter((a) => typeof a === 'object')
+          .map((record) => {
+            let l = [];
+            let husb = findTag(record, "HUSB")?.value;
+            let wife = findTag(record, "WIFE")?.value;
+            if (husb && wife) {
+              l.push({
+                'source': husb,
+                'target': wife,
+                'type': 'marriage',
+              });
+            }
+            let children = record.children.filter((c) => c.tag === 'CHIL');
+            if (children.length > 0) {
+              if (husb) {
+                children.forEach((c) => {
+                  l.push({
+                    'source': c.value,
+                    'target': husb,
+                    'type': 'parent',
+                  });
+                });
+              }
+              if (wife) {
+                children.forEach((c) => {
+                  l.push({
+                    'source': c.value,
+                    'target': wife,
+                    'type': 'parent',
+                  });
+                });
+              }
+            }
+            return l;
+          })
+          .flat();
     }
   }
 }
