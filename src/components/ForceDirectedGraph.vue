@@ -15,18 +15,16 @@
 import * as d3 from 'd3';
 import * as bootstrap from 'bootstrap';
 import * as zoom from 'd3-zoom';
-
 export default {
   name: 'ForceDirectedGraph',
   data() {
     return {
       layout: 'force',
-      nodesData: null,
-      regionsData: [],
       linksData: null,
       differenceLinksData: null,
       nodes: null,
-      links: null,
+      // links: null,
+      colors: ['#377eb8', '#ce3b3d'],
       allLinksData: null,
       allDifferenceLinksData: null,
       isDrag: false,
@@ -34,18 +32,16 @@ export default {
       simulation: null,
       radialCircles: null,
       uniqueGroups: [],
-      colors: d3.schemeTableau10,
       color: null,
       svg: null,
       root: null
     };
   },
   props: {
-    direction: String,
+    allnodes: Array,
     selection: String,
     startYearId: Number,
     endYearId: Number,
-    migrationThreshold: Number,
     linkForceScaling: String,
     linkForceMultiplierInput: String,
     chargeForceMultiplierInput: String,
@@ -75,8 +71,18 @@ export default {
     radius() {
       return parseFloat(this.radiusInput);
     },
+    nodesData() {
+      console.log("new nodesData");
+      console.log(this.allnodes);
+      return this.allnodes;
+
+    },
   },
   watch: {
+    nodesData() {
+      console.log("new nodesData");
+      this.updateMap();
+    },
     direction() {
       this.updateMap();
     },
@@ -87,18 +93,6 @@ export default {
       if (this.selection === 'default') {
         this.switchToForce();
       }
-    },
-    startYearId() {
-      this.filterLinks();
-      this.updateMap();
-    },
-    endYearId() {
-      this.filterLinks();
-      this.updateMap();
-    },
-    migrationThreshold() {
-      this.filterLinks();
-      this.updateMap();
     },
     linkForceScaling() {
       this.updateMap();
@@ -117,20 +111,22 @@ export default {
     },
     radius() {
       this.updateMap();
-    }
+    },
   },
   async mounted() {
-    this.nodesData = await this.loadNodes();
-    this.uniqueGroups = [...new Set(this.nodesData.map(d => d.group))];
+    this.uniqueGroups = ['Male', 'Female'];
     this.color = d3.scaleOrdinal(d3.sort(d3.map(this.nodesData, d => d.group)), this.colors);
 
-    let l = await this.loadLinks();
-    this.allLinksData = l.links;
-    this.allDifferenceLinksData = l.diffs;
+    this.nodesData = this.nodesIn;
+    // let l = await this.loadLinks();
+    // this.allLinksData = l.links;
+    // this.allDifferenceLinksData = l.diffs;
+    this.allLinksData = [];
+    this.allDifferenceLinksData = [];
 
-    this.filterLinks();
     this.updateMap();
   },
+  emits: ['node-clicked'],
   methods: {
     zoomed(event) {
       this.svg
@@ -138,53 +134,35 @@ export default {
           .attr("transform", event.transform);
     },
 
-    async loadNodes() {
-      let c = await d3.json("../../data/countries.json");
-      c.map(d => {
-        d.group = d.region;
-      });
-      this.regionsData = [
-        ...new Set(
-            c.map(d => d.region)
-        )
-      ];
-      return c;
-    },
-
-    async loadLinks() {
-      let linksData = await d3.json("../../data/migration.json");
-
-      let diffs = [];
-      linksData.forEach(d => {
-        if (diffs[d.source + "-" + d.target] !== undefined) {
-          diffs[d.source + "-" + d.target].females = d.females.map((v, i) => v + diffs[d.source + "-" + d.target][i]);
-          diffs[d.source + "-" + d.target].males = d.males.map((v, i) => v + diffs[d.source + "-" + d.target][i]);
-          diffs[d.source + "-" + d.target].total = d.total.map((v, i) => v + diffs[d.source + "-" + d.target][i]);
-        } else {
-          diffs[d.source + "-" + d.target] = d;
-        }
-        if (diffs[d.target + "-" + d.source] !== undefined) {
-          diffs[d.target + "-" + d.source].females = d.females.map((v, i) => diffs[d.source + "-" + d.target][i] - v);
-          diffs[d.target + "-" + d.source].males = d.males.map((v, i) => diffs[d.source + "-" + d.target][i] - v);
-          diffs[d.target + "-" + d.source].total = d.total.map((v, i) => diffs[d.source + "-" + d.target][i] - v);
-        } else {
-          diffs[d.target + "-" + d.source] = {
-            "source": d.target,
-            "target": d.source,
-            "females": d.females.map(e => -e),
-            "males": d.males.map(e => -e),
-            "total": d.total.map(e => -e)
-          };
-        }
-      });
-
-      return {links: linksData, diffs: Object.values(diffs)};
-    },
-
-    filterLinks() {
-      this.differenceLinksData = this.allDifferenceLinksData.filter(d => this.getData(d) > this.migrationThreshold);
-      this.linksData = this.allLinksData.filter(d => this.getData(d) > this.migrationThreshold);
-    },
+    // async loadLinks() {
+    //   let linksData = await d3.json("../../data/migration.json");
+    //
+    //   let diffs = [];
+    //   linksData.forEach(d => {
+    //     if (diffs[d.source + "-" + d.target] !== undefined) {
+    //       diffs[d.source + "-" + d.target].females = d.females.map((v, i) => v + diffs[d.source + "-" + d.target][i]);
+    //       diffs[d.source + "-" + d.target].males = d.males.map((v, i) => v + diffs[d.source + "-" + d.target][i]);
+    //       diffs[d.source + "-" + d.target].total = d.total.map((v, i) => v + diffs[d.source + "-" + d.target][i]);
+    //     } else {
+    //       diffs[d.source + "-" + d.target] = d;
+    //     }
+    //     if (diffs[d.target + "-" + d.source] !== undefined) {
+    //       diffs[d.target + "-" + d.source].females = d.females.map((v, i) => diffs[d.source + "-" + d.target][i] - v);
+    //       diffs[d.target + "-" + d.source].males = d.males.map((v, i) => diffs[d.source + "-" + d.target][i] - v);
+    //       diffs[d.target + "-" + d.source].total = d.total.map((v, i) => diffs[d.source + "-" + d.target][i] - v);
+    //     } else {
+    //       diffs[d.target + "-" + d.source] = {
+    //         "source": d.target,
+    //         "target": d.source,
+    //         "females": d.females.map(e => -e),
+    //         "males": d.males.map(e => -e),
+    //         "total": d.total.map(e => -e)
+    //       };
+    //     }
+    //   });
+    //
+    //   return {links: linksData, diffs: Object.values(diffs)};
+    // },
 
     updateMap() {
       document.querySelector(".map-canvas").innerHTML = "";
@@ -265,8 +243,7 @@ export default {
           .attr("fill-opacity", 1)
           .attr("d", "M0,-5L10,0L0,5");
 
-      let colors = d3.schemeTableau10;
-      const color = d3.scaleOrdinal(d3.sort(d3.map(this.nodesData, d => d.group)), colors);
+      const color = d3.scaleOrdinal(d3.sort(d3.map(this.nodesData, d => d.group)), this.colors);
 
       let p = defs.selectAll("pattern")
           .data(this.nodesData)
@@ -280,64 +257,16 @@ export default {
           .attr("y", "0")
           .attr("height", "1")
           .attr("width", "1")
-          .attr("fill", d => color(d.group));
-      p.append("image")
-          .attr("x", "0")
-          .attr("y", "0")
-          .attr("preserveAspectRatio", "xMidYMid meet")
-          .attr("image-rendering", "pixelated")
-          .attr("height", "1")
-          .attr("width", "1")
-          .attr("xlink:href", d => require('@/assets/img/w20/' + d.iso3316.toString().toLowerCase() + '.png'));
+          .attr("fill", d => this.color(d.group));
+      // p.append("image")
+      //     .attr("x", "0")
+      //     .attr("y", "0")
+      //     .attr("preserveAspectRatio", "xMidYMid meet")
+      //     .attr("image-rendering", "pixelated")
+      //     .attr("height", "1")
+      //     .attr("width", "1")
+      //     .attr("xlink:href", d => require('@/assets/img/w20/' + d.iso3316.toString().toLowerCase() + '.png'));
 
-    },
-
-    showLegend(width, height) {
-      let colors = d3.schemeTableau10;
-      const color = d3.scaleOrdinal(d3.sort(d3.map(this.nodesData, d => d.group)), colors);
-
-      let uniqueGroups = [...new Set(this.nodesData.map(d => d.group))];
-
-      let legend = this.svg.append("g")
-          .attr("transform", `translate(${-width / 2 + 5}, ${-height / 2 + 5})`)
-          .attr("class", "legend");
-
-      legend.append("rect")
-          .attr("x", 0)
-          .attr("y", 20)
-          .attr("width", 150)
-          .attr("height", uniqueGroups.length * 25 + 40)
-          .attr("fill", "#ffffffaa")
-          .attr("stroke", "black")
-          .attr("stroke-width", 1)
-          .attr("rx", 4)
-          .attr("ry", 4);
-
-      legend.append("text")
-          .attr("x", 10)
-          .attr("y", 40)
-          .text("Legend:")
-          .attr("font-weight", "bold")
-          .attr("alignment-baseline", "middle");
-
-      let legendItems = legend.selectAll("g")
-          .data(uniqueGroups)
-          .enter().append("g")
-          .attr("transform", (d, i) => `translate(10, ${i * 25 + 55})`);
-
-      legendItems.append("circle")
-          .attr("cx", 10)
-          .attr("cy", 10)
-          .attr("r", 8)
-          .attr("fill", d => color(d))
-          .attr("stroke", d => color(d))
-          .attr("stroke-width", 2);
-
-      legendItems.append("text")
-          .attr("x", 25)
-          .attr("y", 10)
-          .text(d => d)
-          .attr("alignment-baseline", "middle");
     },
 
 
@@ -356,17 +285,18 @@ export default {
           .attr("stroke-opacity", 0.2)
           .attr("stroke-width", 1);
 
-      const links = this.svg.append("g")
-          .attr("id", "links")
-          .attr("class", "apply-zoom")
-          .attr("fill", "none")
-          .attr("stroke-width", 1.5)
-          .selectAll("path")
-          .data(this.direction === 'd' ? this.differenceLinksData : this.linksData)
-          .join("path")
-          .attr("stroke", "#000")
-          .attr("stroke-width", d => Math.log10(this.getData(d)) - 3);
-      this.links = links;
+      // this.links = [];
+      // const links = this.svg.append("g")
+      //     .attr("id", "links")
+      //     .attr("class", "apply-zoom")
+      //     .attr("fill", "none")
+      //     .attr("stroke-width", 1.5)
+      //     .selectAll("path")
+      //     .data(this.direction === 'd' ? this.differenceLinksData : this.linksData)
+      //     .join("path")
+      //     .attr("stroke", "#000")
+      //     .attr("stroke-width", d => Math.log10(this.getData(d)) - 3);
+      // this.links = links;
 
       const nodes = this.svg.append("g")
           .attr("id", "nodes")
@@ -389,18 +319,17 @@ export default {
       }
 
       this.simulation = d3.forceSimulation(this.nodesData)
-          .force("charge", d3.forceManyBody().strength(-50 * this.chargeForceMultiplier))
-          .force("collide", d3.forceCollide().radius(d => Math.log10(d.population) - 1));
+          .force("charge", d3.forceManyBody().strength(-50 * this.chargeForceMultiplier));
       this.simulation
           .on("tick", () => {
-            links
-                .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
-                .attr("x2", d => d.target.x).attr("y2", d => d.target.y)
-                .attr("d", linkArc);
+            // links
+            //     .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+            //     .attr("x2", d => d.target.x).attr("y2", d => d.target.y)
+            //     .attr("d", linkArc);
             this.simulation.nodes()
                 .forEach(d => {
                   if (!this.isDrag) {
-                    if (d.code === this.root) {
+                    if (d.pointer === this.root) {
                       d.fx = 0;
                       d.fy = 0;
                     } else {
@@ -416,14 +345,12 @@ export default {
           });
 
       this.nodes
-          .attr("fill", d => `url(#flag-${d.iso3316})`)
+          .attr("fill", d => color(d.group))
           .attr("stroke", d => color(d.group))
           .attr("data-bs-toggle", "tooltip").attr("title", d => d.name)
-          .attr("r", d => Math.log10(d.population))
+          .attr("r", 5)
           .call(drag(this.simulation))
-          .on("click", (event, node) => this.nodeClicked(node.code));
-
-      // this.showLegend(width, height);
+          .on("click", (event, node) => this.nodeClicked(node.pointer));
 
       function linkArc(d) {
         const r = 2 * Math.hypot(d.target.x - d.source.x, d.target.y - d.source.y);
@@ -478,8 +405,8 @@ export default {
 
     switchToForce() {
       this.root = null;
-      this.links.attr("stroke-opacity", 0.2)
-          .attr("marker-end", `url(${new URL(`#arrow`, location)})`);
+      // this.links.attr("stroke-opacity", 0.2)
+      //     .attr("marker-end", `url(${new URL(`#arrow`, location)})`);
       this.radialCircles
           .attr("class", "apply-zoom d-none")
           .data([]);
@@ -489,31 +416,31 @@ export default {
           .force("y", null)
           .force("radial", null)
           .force("link", d3.forceLink(this.direction === 'd' ? this.differenceLinksData : this.linksData)
-              .id(({index: i}) => d3.map(this.nodesData, d => d.code)[i])
+              .id(({index: i}) => d3.map(this.nodesData, d => d.pointer)[i])
               .strength(d => this.mapForceLinkStrength(d)))
           .force("x", d3.forceX().strength(0.05 * this.centeringForceMultiplier))
           .force("y", d3.forceY().strength(0.05 * this.centeringForceMultiplier));
       this.simulation.restart().alpha(1).alphaTarget(0);
     },
 
-    switchToRadial(nodeCode) {
-      this.root = nodeCode;
-      let {layers, tree} = this.buildTree(nodeCode);
-      this.links
-          .attr("stroke-opacity", i => (
-                  ((this.direction === 'e' || this.direction === 'd') && tree.has(i.source.code) && tree.get(i.source.code).includes(i.target.code))
-                  || ((this.direction === 'i' || this.direction === 'd') && tree.has(i.target.code) && tree.get(i.target.code).includes(i.source.code))
-              ) ? 1 : 0.05
-          )
-          .attr("marker-end", i => {
-            if (
-                ((this.direction === 'e' || this.direction === 'd') && tree.has(i.source.code) && tree.get(i.source.code).includes(i.target.code))
-                || ((this.direction === 'i' || this.direction === 'd') && tree.has(i.target.code) && tree.get(i.target.code).includes(i.source.code))
-            ) {
-              return `url(${new URL(`#arrow-full`, location)})`;
-            }
-            return `url(${new URL(`#arrow-faded`, location)})`;
-          });
+    switchToRadial(nodePointer) {
+      this.root = nodePointer;
+      let {layers, tree} = this.buildTree(nodePointer);
+      // this.links
+      //     .attr("stroke-opacity", i => (
+      //             ((this.direction === 'e' || this.direction === 'd') && tree.has(i.source.pointer) && tree.get(i.source.pointer).includes(i.target.pointer))
+      //             || ((this.direction === 'i' || this.direction === 'd') && tree.has(i.target.pointer) && tree.get(i.target.pointer).includes(i.source.pointer))
+      //         ) ? 1 : 0.05
+      //     )
+      //     .attr("marker-end", i => {
+      //       if (
+      //           ((this.direction === 'e' || this.direction === 'd') && tree.has(i.source.pointer) && tree.get(i.source.pointer).includes(i.target.pointer))
+      //           || ((this.direction === 'i' || this.direction === 'd') && tree.has(i.target.pointer) && tree.get(i.target.pointer).includes(i.source.pointer))
+      //       ) {
+      //         return `url(${new URL(`#arrow-full`, location)})`;
+      //       }
+      //       return `url(${new URL(`#arrow-faded`, location)})`;
+      //     });
       const radiuses = [...layers.map((d, i) => (i + 1) * this.radius)];
 
       this.radialCircles
@@ -531,41 +458,41 @@ export default {
           .force("y", null)
           .force("radial", null)
           .force("link", d3.forceLink(this.direction === 'd' ? this.differenceLinksData : this.linksData)
-              .id(({index: i}) => d3.map(this.nodesData, d => d.code)[i])
+              .id(({index: i}) => d3.map(this.nodesData, d => d.pointer)[i])
               .strength(link => (
-                      ((this.direction === 'e' || this.direction === 'd') && tree.has(link.source.code) && tree.get(link.source.code).includes(link.target.code))
-                      || ((this.direction === 'i' || this.direction === 'd') && tree.has(link.target.code) && tree.get(link.target.code).includes(link.source.code))
+                      ((this.direction === 'e' || this.direction === 'd') && tree.has(link.source.pointer) && tree.get(link.source.pointer).includes(link.target.pointer))
+                      || ((this.direction === 'i' || this.direction === 'd') && tree.has(link.target.pointer) && tree.get(link.target.pointer).includes(link.source.pointer))
                   ) ? 0.2 * this.linkForceMultiplier : 0
               ))
-          .force("x", d3.forceX().strength(i => (i.code === nodeCode) ? .5 * this.centeringForceMultiplier : 0))
-          .force("y", d3.forceY().strength(i => (i.code === nodeCode) ? .5 * this.centeringForceMultiplier : 0))
+          .force("x", d3.forceX().strength(i => (i.pointer === nodePointer) ? .5 * this.centeringForceMultiplier : 0))
+          .force("y", d3.forceY().strength(i => (i.pointer === nodePointer) ? .5 * this.centeringForceMultiplier : 0))
           .force("radial", d3.forceRadial()
               .strength(3 * this.radialForceMultiplier)
               .radius(i => {
-                let n = layers.findIndex(e => e.includes(i.code));
+                let n = layers.findIndex(e => e.includes(i.pointer));
                 (n === -1) ? n = layers.length : n;
                 return n * this.radius;
               }));
       this.simulation.restart().alpha(0.7);
     },
 
-    nodeClicked(nodeCode, changeLayout = true) {
-      if (changeLayout && (nodeCode === this.root || this.layout === "force")) {
+    nodeClicked(nodePointer, changeLayout = true) {
+      if (changeLayout && (nodePointer === this.root || this.layout === "force")) {
         this.toggleLayout();
       }
       if (this.layout === "force") {
         this.$emit("node-clicked", 'default');
         this.switchToForce();
       } else {
-        this.$emit("node-clicked", nodeCode);
-        this.switchToRadial(nodeCode);
+        this.$emit("node-clicked", nodePointer);
+        this.switchToRadial(nodePointer);
       }
     },
 
     getNeighbors(node) {
       let neighbors = [];
       if (this.direction === 'd') {
-        for (let link of this.differenceLinksData.map(d => [d.source.code, d.target.code])) {
+        for (let link of this.differenceLinksData.map(d => [d.source.pointer, d.target.pointer])) {
           if (link[0] === node) {
             neighbors.push(link[1]);
           } else if (link[1] === node) {
@@ -573,7 +500,7 @@ export default {
           }
         }
       } else {
-        for (let link of this.linksData.map(d => [d.source.code, d.target.code])) {
+        for (let link of this.linksData.map(d => [d.source.pointer, d.target.pointer])) {
           if (this.direction === 'i' && link[1] === node) {
             neighbors.push(link[0]);
           } else if (this.direction === 'e' && link[0] === node) {

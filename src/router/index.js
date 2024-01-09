@@ -4,7 +4,7 @@ import VisControls from "@/components/VisControls.vue";
 const routes = [
     {
         path: '/',
-        name: 'migrations',
+        name: 'viz',
         component: VisControls,
     }
 ]
@@ -17,9 +17,9 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
     const title = to.meta.title;
     if (title) {
-        document.title = 'MigVis - ' + title;
+        document.title = 'GeneoViz - ' + title;
     } else {
-        document.title = 'MigVis';
+        document.title = 'GeneoViz';
     }
     next();
 })
